@@ -9,4 +9,8 @@ implementations/*/data
 implementations/*/images
 implementations/*/saved_models
 
+/ocr_dataset_create_jp
+implementations/*/jp_ckpt
+implementations/*/jp_images
+
 __pycache__
