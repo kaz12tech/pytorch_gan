@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import numpy as np
 import math
 import itertools
@@ -19,6 +20,18 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+
+import logging
+import logging.handlers
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+rh = logging.handlers.RotatingFileHandler(
+        r'./etlcdb_infogan.log', 
+        encoding='utf-8'
+        )
+rh.setFormatter(logging.Formatter("%(asctime)s %(name)s:%(lineno)s %(funcName)s [%(levelname)s]: %(message)s"))
+logger.addHandler(rh)
 
 MNIST = False
 MODEL_DIR = 'jp_ckpt/'
@@ -43,7 +56,7 @@ parser.add_argument("--channels", type=int, default=1, help="number of image cha
 parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
 parser.add_argument("--model_ckpt", type=str, default='', help="model checkpoint")
 opt = parser.parse_args()
-print(opt)
+logger.debug(opt)
 
 cuda = True if torch.cuda.is_available() else False
 
@@ -162,7 +175,7 @@ if opt.model_ckpt != '':
     epoch_on_the_way = checkpoint['epoch']
     generator.load_state_dict(checkpoint['generator'])
     discriminator.load_state_dict(checkpoint['discriminator'])
-    print('model loaded. epoch:', epoch_on_the_way)
+    logger.debug('model loaded. epoch:', epoch_on_the_way)
 
 # MyDataLoader
 class EtlCdbDataLoader(Dataset):
@@ -217,10 +230,10 @@ class EtlCdbDataLoader(Dataset):
             if '.' + os.path.splitext( os.path.basename(p[0]) )[1][1:]
             in EtlCdbDataLoader.IMG_EXTENSIONS
         ]
-        print('data:', etl_paths[0])
+        logger.debug('data:', etl_paths[0])
         # labelsのcategory数を計算
         np_labels = np.sort( np.unique(np.array( temp_labels )) )
-        print('please set --n_classes:', np_labels.size)
+        logger.debug('please set --n_classes:', np_labels.size)
 
         return etl_paths, np_labels
 
@@ -305,7 +318,7 @@ def sample_image(n_row, batches_done):
 # ----------
 #  Training
 # ----------
-best_loss = 1
+best_loss = 10
 for epoch in range(epoch_on_the_way, opt.n_epochs):
     for i, (imgs, labels) in enumerate(dataloader):
 
@@ -400,13 +413,15 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
                 },
                 MODEL_DIR + "jp_best_model_%d.tar" % epoch
             )
-            print('save best model epoch:', epoch, ', path:', MODEL_DIR + "jp_best_model_%d.tar" % epoch)
-
+            logger.debug(
+                "Save best model [Model Path %s][Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [info loss: %f]"
+                % ( MODEL_DIR + "jp_best_model_%d.tar" % epoch, epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), info_loss.item())
+            )
         # --------------
         # Log Progress
         # --------------
         if i % len(dataloader) == 0:
-            print(
+            logger.debug(
                 "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [info loss: %f]"
                 % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), info_loss.item())
             )
@@ -415,7 +430,7 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
         if batches_done % opt.sample_interval == 0:
             sample_image(n_row=10, batches_done=batches_done)
             #sample_image(n_row=opt.n_classes, batches_done=batches_done)
-            print('sample image done batches_done:', batches_done)
+            logger.debug('sample image done batches_done:', batches_done)
     # for i, (imgs, labels) in enumerate(dataloader):
 
     # --------------
@@ -431,5 +446,4 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
             },
             MODEL_DIR + "jp_model_%d.tar" % epoch
         )
-        print('save model epoch:', epoch, ', path:', MODEL_DIR + "jp_model_%d.tar" % epoch)
-    
+        logger.debug('save model epoch:', epoch, ', path:', MODEL_DIR + "jp_model_%d.tar" % epoch)

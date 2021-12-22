@@ -12,5 +12,6 @@ implementations/*/saved_models
 /ocr_dataset_create_jp
 implementations/*/jp_ckpt
 implementations/*/jp_images
+*.log
 
 __pycache__
