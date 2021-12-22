@@ -430,7 +430,7 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
         if batches_done % opt.sample_interval == 0:
             sample_image(n_row=10, batches_done=batches_done)
             #sample_image(n_row=opt.n_classes, batches_done=batches_done)
-            logger.debug('sample image done batches_done:', batches_done)
+            logger.debug('sample image done batches_done: %d' % batches_done)
     # for i, (imgs, labels) in enumerate(dataloader):
 
     # --------------
@@ -446,4 +446,4 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
             },
             MODEL_DIR + "jp_model_%d.tar" % epoch
         )
-        logger.debug('save model epoch:', epoch, ', path:', MODEL_DIR + "jp_model_%d.tar" % epoch)
+        logger.debug('save model. epoch: %d, path: %sjp_model_%d.tar' %(epoch, MODEL_DIR, epoch))
