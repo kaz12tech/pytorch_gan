@@ -9,6 +9,7 @@ from pathlib import Path
 import glob
 import pickle
 import random
+import matplotlib.pyplot as plt
 
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
@@ -170,12 +171,18 @@ discriminator.apply(weights_init_normal)
 
 # ckptがある場合はload
 epoch_on_the_way = 0
+history = {
+    "d_loss" : [],
+    "g_loss" : [],
+    "info_loss" : []
+}
 if opt.model_ckpt != '':
     checkpoint = torch.load(opt.model_ckpt)
     epoch_on_the_way = checkpoint['epoch']
+    history = checkpoint['history']
     generator.load_state_dict(checkpoint['generator'])
     discriminator.load_state_dict(checkpoint['discriminator'])
-    logger.debug('model loaded. epoch:', epoch_on_the_way)
+    logger.debug('model loaded. epoch: %s', epoch_on_the_way)
 
 # MyDataLoader
 class EtlCdbDataLoader(Dataset):
@@ -206,6 +213,12 @@ class EtlCdbDataLoader(Dataset):
 
         pickle_paths = glob.glob(os.path.join(img_dir, '*.pickle'), recursive=True)
 
+        # 一部の文字のみ学習
+        CHAR_LIST = [
+            "/177/", "/178/", "/179/", "/180/", "/181/",
+            "/182/", "/183/", "/184/", "/185/", "/186/"
+            ]
+
         # pickleに格納したETLCDBデータをロード
         # [img_path, [x, y, w, h], label]
         etl_paths = []
@@ -220,9 +233,17 @@ class EtlCdbDataLoader(Dataset):
                     # 親ディレクトリ以下のディレクトリ取得
                     child_dir = content[0].split(str(root_dir))[1]
                     dir = os.path.join(str(img_dir) + str(child_dir))
-                    # label(Unicode)
-                    etl_paths.append( [dir, content[1], ord( content[2] )] )
-                    temp_labels.append(ord( content[2] ))
+
+                    result = False
+                    for target in CHAR_LIST:
+                        if target in dir:
+                            result = True
+
+                    if result == True:
+                        # label(Unicode)
+                        etl_paths.append( [dir, content[1], ord( content[2] )] )
+                        temp_labels.append(ord( content[2] ))
+
         # IMG_EXTENSIONSに該当するファイルのみ取得
         etl_paths = [
             p for p in etl_paths
@@ -230,10 +251,11 @@ class EtlCdbDataLoader(Dataset):
             if '.' + os.path.splitext( os.path.basename(p[0]) )[1][1:]
             in EtlCdbDataLoader.IMG_EXTENSIONS
         ]
-        logger.debug('data:', etl_paths[0])
+
+        logger.debug('data: %s', etl_paths[0])
         # labelsのcategory数を計算
         np_labels = np.sort( np.unique(np.array( temp_labels )) )
-        logger.debug('please set --n_classes:', np_labels.size)
+        logger.debug('please set --n_classes: %d', np_labels.size)
 
         return etl_paths, np_labels
 
@@ -408,6 +430,7 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
             torch.save(
                 {
                     "epoch": epoch,
+                    "history": history,
                     "generator": generator.state_dict(),
                     "discriminator": discriminator.state_dict(),
                 },
@@ -421,6 +444,16 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
         # Log Progress
         # --------------
         if i % len(dataloader) == 0:
+            # append loss
+            if epoch < len(history['d_loss']):
+                history['d_loss'][epoch] = d_loss.item()
+                history['g_loss'][epoch] = g_loss.item()
+                history['info_loss'][epoch] = info_loss.item()
+            else:
+                history['d_loss'].append(d_loss.item())
+                history['g_loss'].append(g_loss.item())
+                history['info_loss'].append(info_loss.item())
+
             logger.debug(
                 "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] [info loss: %f]"
                 % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item(), info_loss.item())
@@ -441,9 +474,21 @@ for epoch in range(epoch_on_the_way, opt.n_epochs):
         torch.save(
             {
                 "epoch": epoch,
+                "history": history,
                 "generator": generator.state_dict(),
                 "discriminator": discriminator.state_dict(),
             },
             MODEL_DIR + "jp_model_%d.tar" % epoch
         )
         logger.debug('save model. epoch: %d, path: %sjp_model_%d.tar' %(epoch, MODEL_DIR, epoch))
+
+# --------------
+# Save Graph
+# --------------
+plt.figure()
+plt.plot(range(0, opt.n_epochs), history['d_loss'], label='D loss')
+plt.plot(range(0, opt.n_epochs), history['g_loss'], label='G loss')
+plt.plot(range(0, opt.n_epochs), history['info_loss'], label='info loss')
+plt.xlabel('epoch')
+plt.legend()
+plt.savefig('loss.png')
