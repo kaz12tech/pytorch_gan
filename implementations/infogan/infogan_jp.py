@@ -22,9 +22,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+from jp_char_list import (
+    CHAR_LIST_HIRAGANA,
+    CHAR_LIST_A_to_KA, CHAR_LIST_SA_to_HA, 
+    CHAR_LIST_KANJI_12326_to_12608
+    )
+
 import logging
 import logging.handlers
 
+# set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 rh = logging.handlers.RotatingFileHandler(
@@ -33,6 +40,17 @@ rh = logging.handlers.RotatingFileHandler(
         )
 rh.setFormatter(logging.Formatter("%(asctime)s %(name)s:%(lineno)s %(funcName)s [%(levelname)s]: %(message)s"))
 logger.addHandler(rh)
+
+# set seed
+seed = 123
+# python random seed
+random.seed(seed)
+# torch seed
+torch.manual_seed(seed)
+# numpy seed
+np.random.seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 MNIST = False
 MODEL_DIR = 'jp_ckpt/'
@@ -212,13 +230,7 @@ class EtlCdbDataLoader(Dataset):
         img_dir = Path(img_dir)
 
         pickle_paths = glob.glob(os.path.join(img_dir, '*.pickle'), recursive=True)
-
-        # 一部の文字のみ学習
-        CHAR_LIST = [
-            "/177/", "/178/", "/179/", "/180/", "/181/",
-            "/182/", "/183/", "/184/", "/185/", "/186/"
-            ]
-
+        
         # pickleに格納したETLCDBデータをロード
         # [img_path, [x, y, w, h], label]
         etl_paths = []
@@ -234,8 +246,13 @@ class EtlCdbDataLoader(Dataset):
                     child_dir = content[0].split(str(root_dir))[1]
                     dir = os.path.join(str(img_dir) + str(child_dir))
 
+                    # etl全て
+                    #etl_paths.append( [dir, content[1], ord( content[2] )] )
+                    #temp_labels.append(ord( content[2] ))
+
+                    # CHAR_LISTのみ
                     result = False
-                    for target in CHAR_LIST:
+                    for target in CHAR_LIST_HIRAGANA:
                         if target in dir:
                             result = True
 
